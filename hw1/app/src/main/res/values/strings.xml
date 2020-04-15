@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">cse562hw1</string>
+
+    <!--- Strings for status text -->
+    <string name="status_pre_label">Status: </string>
+    <string name="status_off">Off</string>
+    <string name="status_on">On</string>
+    <string name="button_text">On/Off</string>
+
+    <!--- Strings for detection text -->
+    <string name="detection_none">None</string>
+    <string name="detection_pull">Pull</string>
+    <string name="detection_push">Push</string>
+</resources>

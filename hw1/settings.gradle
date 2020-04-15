@@ -1,0 +1,2 @@
+rootProject.name='cse562hw1'
+include ':app'
