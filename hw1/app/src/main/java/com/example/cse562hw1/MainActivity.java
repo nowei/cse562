@@ -14,6 +14,9 @@ import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -28,14 +31,22 @@ public class MainActivity extends AppCompatActivity {
     private AudioTrack wave = null;
     ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     ScheduledFuture<?> detectionHandle = null;
+    private int FREQUENCY = 500; // In Hz
     private int fsmState = 0;
     final Runnable detector = new Runnable() { public void run() { detection(); } };
-    final int BUFFER_SIZE = 2048;
-    final AudioRecord recorder = new AudioRecord(MediaRecorder.AudioSource.MIC,
-                    44100,
-                    AudioFormat.CHANNEL_IN_STEREO,
-                    AudioFormat.ENCODING_PCM_16BIT,
-                    BUFFER_SIZE);
+    final int BUFFER_SIZE = 4096;
+    final AudioRecord recorder = new AudioRecord.Builder()
+                    .setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
+                    .setAudioFormat(new AudioFormat.Builder()
+                            .setSampleRate(44100)
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+                            .build())
+                    .setBufferSizeInBytes(BUFFER_SIZE)
+                    .build();
+    final FFT fft = new FFT(BUFFER_SIZE);
+
+
     public void updateDetection() {
         detectionHandle = scheduler.schedule(detector, -1, MILLISECONDS);
     }
@@ -43,10 +54,9 @@ public class MainActivity extends AppCompatActivity {
     public void detection() {
 //        int bufferSize = AudioRecord.getMinBufferSize(44100, AudioFormat.CHANNEL_IN_STEREO, AudioFormat.ENCODING_PCM_16BIT);
         long start = System.currentTimeMillis();
+        final short[] buffer = new short[BUFFER_SIZE];
+
         try {
-
-            final byte[] buffer = new byte[BUFFER_SIZE];
-
             recorder.startRecording();
 
             // Read until buffer is full
@@ -63,14 +73,65 @@ public class MainActivity extends AppCompatActivity {
             Log.d("In thread", e.toString());
         }
 
-        // Perform FFT
-//                ditfft2(x, N, s);
+        double max = Math.pow(2, 16 - 1);
+        double[] realPart = new double[buffer.length];
+        for (int i = 0; i < realPart.length; i++) {
+            realPart[i] = ((double) buffer[i] / max);
+        }
 
-        TextView s = (TextView) findViewById(R.id.detection);
+        // Perform FFT
+        double[] imagPart = new double[buffer.length];
+        fft.fft(realPart, imagPart);
+
 //        s.setText(("Recordings done: " + fsmState++));
+//        835.918367
+        int freq = FREQUENCY;
+        int offset = 25;
+        int observer = (int)(((double)freq / (44100.0 / 2.0)) * BUFFER_SIZE) - offset;
+        try {
+            Log.d("FFTres", (Arrays.toString(Arrays.copyOfRange(realPart, 0, observer + offset * 2))));
+        }catch (Exception e) {
+            Log.d("FFTres", e.toString());
+        }
+//        testAudio(buffer);
+//        Log.d("FFTres","What the heck");
+        TextView s = (TextView) findViewById(R.id.detection);
         s.setText(("Time taken " + (System.currentTimeMillis() - start)));
         if (enabled) {
             detectionHandle = scheduler.schedule(detector, -1, MILLISECONDS);
+        }
+    }
+
+    private void testAudio(short[] buffer) {
+
+        final byte[] generatedSound = new byte[2 * BUFFER_SIZE];
+        for (int i = 0; i < BUFFER_SIZE; i++) {
+            final short val = buffer[i];
+            generatedSound[i * 2] = (byte) (val & 0x00ff);
+            generatedSound[i * 2 + 1] = (byte) ((val & 0xff00) >>> 8);
+        }
+        AudioTrack audioTrack = new AudioTrack.Builder()
+                .setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_UNKNOWN)
+                        .build())
+                .setAudioFormat(new AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(44100)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build())
+                .setBufferSizeInBytes(generatedSound.length)
+                .setTransferMode(AudioTrack.MODE_STATIC)
+                .build();
+        audioTrack.write(generatedSound, 0, generatedSound.length);
+        audioTrack.setLoopPoints(0, BUFFER_SIZE, -1);
+        audioTrack.setVolume(AudioTrack.getMaxVolume());
+        wave.stop();
+        audioTrack.play();
+        while (true) {
+
+            if (false) break;
+
         }
     }
 
@@ -86,6 +147,7 @@ public class MainActivity extends AppCompatActivity {
                     wave.pause();
                     wave.flush();
                 }
+                Log.d("MarkerReached", "It's not turning off " + enabled);
             }
 
             @Override
@@ -104,8 +166,10 @@ public class MainActivity extends AppCompatActivity {
                 Log.d("Toggling", "Turning off");
                 statusText.setText(R.string.status_off);
                 statusText.setTextColor(Color.RED);
-                AudioManager audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+//                AudioManager audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
 //                scheduler.schedule(new Runnable() { public void run() { detectionHandle.cancel(true); } }, 1, SECONDS);
+                wave.pause();
+                wave.flush();
             } else {
                 enabled = true;
                 wave.play();
@@ -122,7 +186,6 @@ public class MainActivity extends AppCompatActivity {
 
 
     private AudioTrack generateTone() {
-        final int FREQUENCY = 18000;                     // in Hz
         final int DURATION = 1;                          // in s
         final float SAMPLE_RATE = 44100.0f;              // in Hz
         final int NUM_SAMPLES = DURATION * (int)SAMPLE_RATE;  // number of samples
@@ -146,13 +209,20 @@ public class MainActivity extends AppCompatActivity {
                         .setSampleRate((int)SAMPLE_RATE)
                         .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                         .build())
-                .setBufferSizeInBytes(generatedSound.length * 2)
+                .setBufferSizeInBytes(generatedSound.length)
                 .setTransferMode(AudioTrack.MODE_STATIC)
                 .build();
         audioTrack.write(generatedSound, 0, generatedSound.length);
         audioTrack.setLoopPoints(0, NUM_SAMPLES, -1);
         audioTrack.setVolume(AudioTrack.getMaxVolume());
         return audioTrack;
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        wave.pause();
+        wave.flush();
     }
 
 }
