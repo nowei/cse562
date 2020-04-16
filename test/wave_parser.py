@@ -9,16 +9,16 @@ with open('wave_data.txt', 'r') as f:
     for line in f:
         arr = eval(line)
         arrays.append(arr)
-offset = 25
-freq = 500
-N = 4096
+offset = 15
+freq = 18000
+N = 8192
 SR = 44100
-start = int((freq / (SR / 2)) * N) - offset
+observer = int((freq / (SR / 2)) * (N // 2)) - offset
+ind_range = range(observer, observer + offset * 2)
 
-ind_range = range(0, start + offset * 2)
-
-multipliers = (SR / 2) / N
-freq_buckets = [i * multipliers for i in ind_range]
+multiplier = (SR // 2) / (N // 2)
+freq_buckets = [i * multiplier for i in ind_range]
+print(multiplier, observer + offset, freq_buckets[offset])
 x = freq_buckets
 plt.rcParams["mathtext.fontset"] = "cm"
 for i in range(len(arrays)):

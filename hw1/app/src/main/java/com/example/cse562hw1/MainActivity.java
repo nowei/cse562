@@ -31,12 +31,12 @@ public class MainActivity extends AppCompatActivity {
     private AudioTrack wave = null;
     ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     ScheduledFuture<?> detectionHandle = null;
-    private int FREQUENCY = 500; // In Hz
+    private int FREQUENCY = 18000; // In Hz
     private int fsmState = 0;
     final Runnable detector = new Runnable() { public void run() { detection(); } };
-    final int BUFFER_SIZE = 4096;
+    final int BUFFER_SIZE = 8192;
     final AudioRecord recorder = new AudioRecord.Builder()
-                    .setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
+                    .setAudioSource(MediaRecorder.AudioSource.MIC)
                     .setAudioFormat(new AudioFormat.Builder()
                             .setSampleRate(44100)
                             .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
@@ -55,13 +55,12 @@ public class MainActivity extends AppCompatActivity {
 //        int bufferSize = AudioRecord.getMinBufferSize(44100, AudioFormat.CHANNEL_IN_STEREO, AudioFormat.ENCODING_PCM_16BIT);
         long start = System.currentTimeMillis();
         final short[] buffer = new short[BUFFER_SIZE];
-
         try {
             recorder.startRecording();
 
             // Read until buffer is full
             int offset = 0;
-            int length = BUFFER_SIZE;
+            int length = buffer.length;
             int read;
             while (length > 0) {
                 read = recorder.read(buffer, offset, length);
@@ -72,34 +71,133 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.d("In thread", e.toString());
         }
+//        ByteBuffer.wrap(bytesBuffer).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(buffer);
 
+        // Convert into FFT inputs
         double max = Math.pow(2, 16 - 1);
-        double[] realPart = new double[buffer.length];
-        for (int i = 0; i < realPart.length; i++) {
-            realPart[i] = ((double) buffer[i] / max);
+        Complex[] x = new Complex[buffer.length];
+        for (int i = 0; i < x.length; i++) {
+            x[i] = new Complex((double)buffer[i] / max, 0.0);
         }
 
         // Perform FFT
-        double[] imagPart = new double[buffer.length];
-        fft.fft(realPart, imagPart);
-
-//        s.setText(("Recordings done: " + fsmState++));
-//        835.918367
-        int freq = FREQUENCY;
-        int offset = 25;
-        int observer = (int)(((double)freq / (44100.0 / 2.0)) * BUFFER_SIZE) - offset;
-        try {
-            Log.d("FFTres", (Arrays.toString(Arrays.copyOfRange(realPart, 0, observer + offset * 2))));
-        }catch (Exception e) {
-            Log.d("FFTres", e.toString());
+        Complex[] res = fft.fft(x);
+        double[] ampl = new double[buffer.length];
+        for (int i = 0; i < x.length; i++) {
+            ampl[i] = res[i].abs();
+//            ampl[i] = res[i].r;
         }
+
+        // Extract expected peak
+        int offset = 15;
+        int focusedFreq = (int)(((double)FREQUENCY / (44100.0 / 2.0)) * (BUFFER_SIZE / 2.0)) + 1;
+        int observer = focusedFreq - offset;
+        double[] target = Arrays.copyOfRange(ampl, observer, observer + offset * 2);
+//        try {
+//            Log.d("FFTres", (ampl[focusedFreq - 1] + " " + ampl[focusedFreq] + " " + ampl[focusedFreq + 1]));
+//            Log.d("FFTres", (Arrays.toString(target)));
+//        }catch (Exception e) {
+//            Log.d("FFTres", e.toString());
+//        }
 //        testAudio(buffer);
-//        Log.d("FFTres","What the heck");
+
+        // Update FSM to determine if push or pull
+        int fsmUpdate = findRelativeDrops(ampl, focusedFreq) * 2;
+//        findRelativeDrops(ampl, focusedFreq);
+//        int fsmUpdate = 0;
+        int fsmBefore = fsmState;
+        if (fsmUpdate > 0) {
+            if (fsmState < 0) {
+                fsmState -= 1;
+            } else {
+                fsmState += fsmUpdate;
+            }
+        } else if (fsmUpdate < 0) {
+            if (fsmState > 0) {
+                fsmState += 1;
+            } else {
+                if (fsmState <= 2)
+                    fsmState += fsmUpdate;
+            }
+        } else {
+            if (fsmState < 0) {
+                fsmState += 1;
+            } else if (fsmState > 0) {
+                if (fsmState >= -2)
+                    fsmState -= 1;
+            }
+        }
+
         TextView s = (TextView) findViewById(R.id.detection);
-        s.setText(("Time taken " + (System.currentTimeMillis() - start)));
+        if (fsmState >= 1) {
+            s.setText(R.string.detection_push);
+        } else if (fsmState <= -1) {
+            s.setText(R.string.detection_pull);
+        } else if (-1 < fsmState && fsmState < 1) {
+            s.setText(R.string.detection_none);
+        }
+        Log.d("FSMUpdate", "Before: " + fsmBefore + ", After: " + fsmState + ", Update: " + fsmUpdate);
+
         if (enabled) {
             detectionHandle = scheduler.schedule(detector, -1, MILLISECONDS);
         }
+    }
+
+    private int findRelativeDrops(double[] ampl, int peakInd) {
+        double peakAmp = ampl[peakInd];
+
+        int window = 10;
+
+        // Look for 0.1 of peakAmp
+        int candLeft = peakInd - 1;
+        int candRight = peakInd + 1;
+        double firstThresh = 0.15 * peakAmp;
+        int leftWindow = peakInd - window;
+        int rightWindow = peakInd + window;
+        while (candLeft > leftWindow && ampl[candLeft] > firstThresh) {
+            candLeft--;
+        }
+        while (candRight < rightWindow && ampl[candRight] > firstThresh) {
+            candRight++;
+        }
+//        Log.d("StartingCands", (peakInd - candLeft) + " " + (candRight - peakInd));
+        int extendedLeft = candLeft - 1;
+        int extendedRight = candRight + 1;
+
+        // Look for extended peak of wave
+        double secondThresh = 0.2 * peakAmp;
+        while (extendedLeft > leftWindow && ampl[extendedLeft] < secondThresh) {
+            extendedLeft--;
+        }
+        while (extendedRight < rightWindow && ampl[extendedRight] < secondThresh) {
+            extendedRight++;
+        }
+
+        // If we found thresholds that are beyond the window we care about
+        if (ampl[extendedLeft] > secondThresh && extendedLeft > leftWindow) {
+            double thirdThresh = ampl[extendedLeft] * 0.1;
+            int extendedCandLeft = extendedLeft - 1;
+            while (extendedCandLeft > leftWindow && ampl[extendedCandLeft] > thirdThresh) {
+                extendedCandLeft--;
+            }
+            candLeft = extendedCandLeft;
+        }
+        if (ampl[extendedRight] > secondThresh && extendedRight < rightWindow) {
+            double thirdThresh = ampl[extendedRight] * 0.1;
+            int extendedCandRight = extendedRight + 1;
+            while (extendedCandRight < rightWindow && ampl[extendedCandRight] > thirdThresh) {
+                extendedCandRight++;
+            }
+            candRight = extendedCandRight;
+        }
+        int update = 0;
+        candLeft = peakInd - candLeft;
+        candRight = candRight - peakInd;
+        if (candLeft >= 4) update -= 1;
+        if (candRight >= 4) update += 1;
+        Log.d("Candidates", "Left: " + candLeft + ", Right: " + candRight + " diff: " + (candRight - candLeft) + " update: " + update);
+
+        return update;
     }
 
     private void testAudio(short[] buffer) {
@@ -143,7 +241,7 @@ public class MainActivity extends AppCompatActivity {
         wave.setPlaybackPositionUpdateListener(new AudioTrack.OnPlaybackPositionUpdateListener() {
             @Override
             public void onMarkerReached(AudioTrack track) {
-                if (enabled) {
+                if (!enabled) {
                     wave.pause();
                     wave.flush();
                 }
