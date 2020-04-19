@@ -9,6 +9,7 @@ public class Complex {
     }
     public double abs() {
         return Math.hypot(r, i);
+//        return Math.pow(r, 2) + Math.pow(i, 2);
     }
 
     public Complex plus(Complex b) {

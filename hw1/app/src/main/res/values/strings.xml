@@ -11,4 +11,5 @@
     <string name="detection_none">None</string>
     <string name="detection_pull">Pull</string>
     <string name="detection_push">Push</string>
+    <string name="freq_none">Stopped</string>
 </resources>

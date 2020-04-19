@@ -90,10 +90,11 @@ public class MainActivity extends AppCompatActivity {
 
         // Extract expected peak
         int offset = 15;
-        int focusedFreq = (int)(((double)FREQUENCY / (44100.0 / 2.0)) * (BUFFER_SIZE / 2.0)) + 1;
+        int focusedFreq = (int)(((double)FREQUENCY / (44100.0 / 2.0)) * (buffer.length / 2.0)) + 1;
         int observer = focusedFreq - offset;
         double[] target = Arrays.copyOfRange(ampl, observer, observer + offset * 2);
 //        try {
+            Log.d("FFTres", (ampl[focusedFreq - 3] + " " + ampl[focusedFreq - 2] + " " + ampl[focusedFreq - 1] + " " + ampl[focusedFreq] + " " + ampl[focusedFreq + 1]) + " " + ampl[focusedFreq + 2] + ampl[focusedFreq + 3]);
 //            Log.d("FFTres", (ampl[focusedFreq - 1] + " " + ampl[focusedFreq] + " " + ampl[focusedFreq + 1]));
 //            Log.d("FFTres", (Arrays.toString(target)));
 //        }catch (Exception e) {
@@ -102,48 +103,59 @@ public class MainActivity extends AppCompatActivity {
 //        testAudio(buffer);
 
         // Update FSM to determine if push or pull
-        int fsmUpdate = findRelativeDrops(ampl, focusedFreq) * 2;
+        int[] rel_drops = findRelativeDrops(ampl, focusedFreq);
+        int fsmUpdate = rel_drops[0];
+        double bucketFreq = (focusedFreq + rel_drops[1] - 1) / (buffer.length / 2.0) * (44100.0 / 2.0);
 //        findRelativeDrops(ampl, focusedFreq);
 //        int fsmUpdate = 0;
         int fsmBefore = fsmState;
-        if (fsmUpdate > 0) {
-            if (fsmState < 0) {
-                fsmState -= 1;
-            } else {
-                fsmState += fsmUpdate;
-            }
-        } else if (fsmUpdate < 0) {
-            if (fsmState > 0) {
-                fsmState += 1;
-            } else {
-                if (fsmState <= 2)
-                    fsmState += fsmUpdate;
-            }
+        if (fsmUpdate != 0) {
+            fsmState += fsmUpdate * 2;
         } else {
-            if (fsmState < 0) {
+            if (fsmState > 0) {
+                fsmState -= 1;
+            } else if (fsmState < 0) {
                 fsmState += 1;
-            } else if (fsmState > 0) {
-                if (fsmState >= -2)
-                    fsmState -= 1;
             }
+//        } else if (fsmUpdate < 0) {
+//            if (fsmState > 0) {
+//                fsmState += 1;
+//            } else {
+//                if (fsmState <= 1)
+//                    fsmState += fsmUpdate;
+//            }
+//        } else {
+//            if (fsmState < 0) {
+//                fsmState += 1;
+//            } else if (fsmState > 0) {
+//                if (fsmState >= -1)
+//                    fsmState -= 1;
+//            }
         }
 
         TextView s = (TextView) findViewById(R.id.detection);
+        TextView f = (TextView) findViewById(R.id.freq_string);
         if (fsmState >= 1) {
             s.setText(R.string.detection_push);
+            f.setText(String.format("%f Hz", bucketFreq));
         } else if (fsmState <= -1) {
             s.setText(R.string.detection_pull);
+            f.setText(String.format("%f Hz", bucketFreq));
         } else if (-1 < fsmState && fsmState < 1) {
             s.setText(R.string.detection_none);
+            f.setText(String.format("%f Hz", bucketFreq));
         }
+
         Log.d("FSMUpdate", "Before: " + fsmBefore + ", After: " + fsmState + ", Update: " + fsmUpdate);
 
         if (enabled) {
             detectionHandle = scheduler.schedule(detector, -1, MILLISECONDS);
+        } else {
+            f.setText(R.string.freq_none);
         }
     }
 
-    private int findRelativeDrops(double[] ampl, int peakInd) {
+    private int[] findRelativeDrops(double[] ampl, int peakInd) {
         double peakAmp = ampl[peakInd];
 
         int window = 10;
@@ -151,7 +163,7 @@ public class MainActivity extends AppCompatActivity {
         // Look for 0.1 of peakAmp
         int candLeft = peakInd - 1;
         int candRight = peakInd + 1;
-        double firstThresh = 0.15 * peakAmp;
+        double firstThresh = 0.2 * peakAmp;
         int leftWindow = peakInd - window;
         int rightWindow = peakInd + window;
         while (candLeft > leftWindow && ampl[candLeft] > firstThresh) {
@@ -165,7 +177,7 @@ public class MainActivity extends AppCompatActivity {
         int extendedRight = candRight + 1;
 
         // Look for extended peak of wave
-        double secondThresh = 0.2 * peakAmp;
+        double secondThresh = 0.4 * peakAmp;
         while (extendedLeft > leftWindow && ampl[extendedLeft] < secondThresh) {
             extendedLeft--;
         }
@@ -193,11 +205,17 @@ public class MainActivity extends AppCompatActivity {
         int update = 0;
         candLeft = peakInd - candLeft;
         candRight = candRight - peakInd;
+        int diff = candRight - candLeft;
         if (candLeft >= 4) update -= 1;
-        if (candRight >= 4) update += 1;
+        if (candRight >= 3) update += 1;
         Log.d("Candidates", "Left: " + candLeft + ", Right: " + candRight + " diff: " + (candRight - candLeft) + " update: " + update);
-
-        return update;
+        if (update == 0) {
+            return new int[]{update, 0};
+        } else if (update == 1) {
+            return new int[]{update, candRight};
+        } else {
+            return new int[]{update, -candLeft};
+        }
     }
 
     private void testAudio(short[] buffer) {
@@ -227,9 +245,7 @@ public class MainActivity extends AppCompatActivity {
         wave.stop();
         audioTrack.play();
         while (true) {
-
             if (false) break;
-
         }
     }
 
@@ -264,6 +280,8 @@ public class MainActivity extends AppCompatActivity {
                 Log.d("Toggling", "Turning off");
                 statusText.setText(R.string.status_off);
                 statusText.setTextColor(Color.RED);
+                TextView f = (TextView) findViewById(R.id.freq_string);
+                f.setText(R.string.freq_none);
 //                AudioManager audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
 //                scheduler.schedule(new Runnable() { public void run() { detectionHandle.cancel(true); } }, 1, SECONDS);
                 wave.pause();
@@ -287,8 +305,8 @@ public class MainActivity extends AppCompatActivity {
         final int DURATION = 1;                          // in s
         final float SAMPLE_RATE = 44100.0f;              // in Hz
         final int NUM_SAMPLES = DURATION * (int)SAMPLE_RATE;  // number of samples
-        final double sample[] = new double[NUM_SAMPLES];
-        final byte generatedSound[] = new byte[2 * NUM_SAMPLES];
+        final double[] sample = new double[NUM_SAMPLES];
+        final byte[] generatedSound = new byte[2 * NUM_SAMPLES];
         for (int i = 0; i < NUM_SAMPLES; i++) {
             sample[i] = Math.sin(2 * Math.PI * i / (SAMPLE_RATE / FREQUENCY));
         }
@@ -300,7 +318,7 @@ public class MainActivity extends AppCompatActivity {
         AudioTrack audioTrack = new AudioTrack.Builder()
                 .setAudioAttributes(new AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_UNKNOWN)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                         .build())
                 .setAudioFormat(new AudioFormat.Builder()
                         .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
