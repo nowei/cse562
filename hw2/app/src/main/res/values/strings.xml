@@ -1,3 +1,26 @@
 <resources>
     <string name="app_name">hw2</string>
+    <string name="gyro_bias">Gyro Bias: </string>
+    <string name="gyro_noise">Gyro Noise: </string>
+    <string name="accel_bias">Accel Bias: </string>
+    <string name="accel_noise">Accel Noise: </string>
+    <string name="measure_accel">Measure Accel</string>
+    <string name="measure_gyro">Measure Gyro</string>
+    <string name="plot_tilt_gyro">Plot Tilt Gyro</string>
+    <string name="plot_tilt_accel">Plot Tilt Accel</string>
+    <string name="plot_tilt_comp">Plot Tilt Complementary</string>
+    <string name="static_status_text">"Status: "</string>
+    <string name="static_tilt_text">"Tilt: "</string>
+    <string name="init_tilt_text">Not Measured</string>
+    <string name="zeros">[0.0, 0.0, 0.0]</string>
+
+<!--    Statuses-->
+    <string name="status_none">None</string>
+    <string name="status_measure_gyro">Measuring Gyro</string>
+    <string name="status_measure_accel">Measuring Accel</string>
+    <string name="status_plot_gyro_tilt">Plotting Gyro Tilt</string>
+    <string name="status_plot_accel_tilt">Plotting Accel Tilt</string>
+    <string name="status_plot_comp_tilt">Plotting Comp Tilt</string>
+    <string name="status_getting_comp_tilt">Getting Comp Tilt</string>
+
 </resources>
