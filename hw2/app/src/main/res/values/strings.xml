@@ -22,5 +22,6 @@
     <string name="status_plot_accel_tilt">Plotting Accel Tilt</string>
     <string name="status_plot_comp_tilt">Plotting Comp Tilt</string>
     <string name="status_getting_comp_tilt">Getting Comp Tilt</string>
+    <string name="measure_tilt">Measure Tilt</string>
 
 </resources>
