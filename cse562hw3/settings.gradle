@@ -1,0 +1,3 @@
+rootProject.name='cse562hw3'
+include ':app'
+include ':libraries:opencv'

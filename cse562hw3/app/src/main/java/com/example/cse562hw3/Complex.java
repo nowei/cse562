@@ -1,0 +1,41 @@
+package com.example.cse562hw3;
+
+public class Complex {
+    public final double r;
+    public final double i;
+    public Complex(double real, double imag) {
+        r = real;
+        i = imag;
+    }
+    public double abs() {
+        return Math.hypot(r, i);
+//        return Math.pow(r, 2) + Math.pow(i, 2);
+    }
+
+    public Complex plus(Complex b) {
+        Complex a = this;
+        double real = a.r + b.r;
+        double imag = a.i + b.i;
+        return new Complex(real, imag);
+    }
+
+    public Complex minus(Complex b) {
+        Complex a = this;
+        double real = a.r - b.r;
+        double imag = a.i - b.i;
+        return new Complex(real, imag);
+    }
+
+    public Complex times(Complex b) {
+        Complex a = this;
+        double real = a.r * b.r - a.i * b.i;
+        double imag = a.r * b.i + a.i * b.r;
+        return new Complex(real, imag);
+    }
+
+    @Override
+    public String toString() {
+//        return "(" + r + ", " + i + ")";
+        return "" + r;
+    }
+}

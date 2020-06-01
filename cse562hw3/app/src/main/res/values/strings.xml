@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">cse562hw3</string>
+    <string name="none">None</string>
+    <string name="static_message">"Message: "</string>
+    <string name="static_bits">Decoded bits:</string>
+    <string name="recalibrate_btn">recalibrate</string>
+    <string name="restart_btn">restart</string>
+    <string name="recalibrated">Recalibrated</string>
+    <string name="done">Done</string>
+    <string name="started">Started</string>
+    <string name="recalibrating">Recalibrating</string>
+    <string name="needs_recalibration">Needs to be Recalibrated</string>
+</resources>
