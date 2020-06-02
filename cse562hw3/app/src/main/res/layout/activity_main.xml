@@ -59,7 +59,7 @@
 
     <TextView
         android:id="@+id/received_bits"
-        android:layout_width="wrap_content"
+        android:layout_width="180dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="12dp"
         android:text="@string/none"
@@ -81,13 +81,13 @@
         app:layout_constraintStart_toStartOf="parent" />
 
     <Button
-        android:id="@+id/recalibrate_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="68dp"
+        android:id="@+id/preamble_button"
+        android:layout_width="113dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="56dp"
         android:layout_marginBottom="52dp"
-        android:onClick="recalibrateButtonHandler"
-        android:text="@string/recalibrate_btn"
+        android:onClick="recalibratePreambleButtonHandler"
+        android:text="@string/preamble"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 

@@ -10,4 +10,7 @@
     <string name="started">Started</string>
     <string name="recalibrating">Recalibrating</string>
     <string name="needs_recalibration">Needs to be Recalibrated</string>
+    <string name="preamble">Preamble</string>
+    <string name="recalibrate_preamble">Recalibrating preamble</string>
+    <string name="recalibrated_preamble">Recalibrated Preamble</string>
 </resources>

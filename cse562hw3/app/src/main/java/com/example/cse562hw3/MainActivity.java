@@ -124,14 +124,15 @@ public class MainActivity extends AppCompatActivity {
     };
 
     private double currTime;
-    private ArrayList<Double> calibration = new ArrayList<>();
+//    private ArrayList<Double> calibration = new ArrayList<>();
+    private ArrayList<Double> preamble = new ArrayList<>();
     private ArrayList<Double> bitstream = new ArrayList<>();
-
-    private final double STOP_THRESHOLD = 2_000_000.0;
+    private double STOP_THRESHOLD;
     private final int STOP_FRAMES = 6;
     private final int CALIBRATION_NUM = 400;
     private boolean testing = false;
-    private boolean recalibrating;
+//    private boolean recalibrating;
+    private boolean recalibratingPreamble;
     private boolean started;
     private boolean witnessed;
     private final ImageReader.OnImageAvailableListener mOnImageAvailableListener
@@ -144,7 +145,8 @@ public class MainActivity extends AppCompatActivity {
 
             try {
                 image = reader.acquireLatestImage();
-                if (image != null && (recalibrating || started || testing)) {
+                if (image != null && (recalibratingPreamble || started || testing)) {
+//                if (image != null && (recalibrating || recalibratingPreamble || started || testing)) {
 //                if (image != null && (started || testing)) {
 //                    byte[] nv21;
 //                    ByteBuffer yBuffer = image.getPlanes()[0].getBuffer();
@@ -180,25 +182,56 @@ public class MainActivity extends AppCompatActivity {
 //                    Log.d("Size of frame", mRGB.size().toString());
 //                    Log.d("Entries", Arrays.toString(mRGB.get(0, 0)));
 //                    Log.d("Entries", Arrays.toString(mRGB.get((int) mRGB.size().width / 2, (int) mRGB.size().height / 2)));
-                    if (recalibrating && calibration.size() < CALIBRATION_NUM) {
-                        calibration.add(colorIntensity);
-                        if (calibration.size() == CALIBRATION_NUM) {
-                            recalibrating = false;
+                    if (recalibratingPreamble && preamble.size() < CALIBRATION_NUM) {
+                        preamble.add(colorIntensity);
+                        if (preamble.size() == CALIBRATION_NUM) {
+                            recalibratingPreamble = false;
                             runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
                                     TextView statusText = (TextView) findViewById(R.id.status);
-                                    statusText.setText(R.string.recalibrated);
+                                    statusText.setText(R.string.recalibrated_preamble);
                                 }
                             });
-                            Log.d("onImageAvailable - recalibration", "Done recalibrating");
+                            for (int i = 0; i < CALIBRATION_NUM; i++) {
+                                STOP_THRESHOLD = Math.max(STOP_THRESHOLD, preamble.get(i));
+                            }
+//                            STOP_THRESHOLD /= CALIBRATION_NUM;
+                            STOP_THRESHOLD *= 10;
+                            Log.d("onImageAvailable - preamble", "Done recalibrating, threshold = " + STOP_THRESHOLD);
                         }
-                    } else if (started) {
+                    }
+
+//                    if (recalibrating && calibration.size() < CALIBRATION_NUM) {
+//                        calibration.add(colorIntensity);
+//                        if (calibration.size() == CALIBRATION_NUM) {
+//                            recalibrating = false;
+//                            runOnUiThread(new Runnable() {
+//                                @Override
+//                                public void run() {
+//                                    TextView statusText = (TextView) findViewById(R.id.status);
+//                                    statusText.setText(R.string.recalibrated);
+//                                }
+//                            });
+//                            Log.d("onImageAvailable - recalibration", "Done recalibrating");
+//                            double minimum = Double.MAX_VALUE;
+//                            double total = 0.0;
+//                            for (int i = 0; i < CALIBRATION_NUM; i++) {
+//                                minimum = Math.min(minimum, calibration.get(i));
+//                                total += calibration.get(i);
+//                            }
+//                            double average = total / CALIBRATION_NUM;
+//                            Log.d("onImageAvailable - recalibration", "average: " + average + ", minimum: " + minimum);
+//                        }
+                    if (started) {
 //                    if (started) {
                         if (bitstream.isEmpty()) {
                             Log.d("onImageAvailable - streaming", "Starting");
                         }
-                        if (colorIntensity > STOP_THRESHOLD) witnessed = true;
+                        if (colorIntensity > STOP_THRESHOLD) {
+                            Log.d("onImageAvailable - streaming", "Witnessed a color " + colorIntensity);
+                            witnessed = true;
+                        }
 
                         bitstream.add(colorIntensity);
                         if (witnessed && bitstream.size() > STOP_FRAMES) {
@@ -224,16 +257,18 @@ public class MainActivity extends AppCompatActivity {
                         }
 
                     }
-                    if (testing || recalibrating || started) {
-//                    if (testing || started) {
-                        if (testing)
-                            Log.d("onImageAvailable - testing", 1.0 / (System.nanoTime() / 10e9 - currTime) + " color intensity " + colorIntensity + " size " + mRGB.size().toString());
-                        else if (recalibrating)
-                            Log.d("onImageAvailable - recalibrating", 1.0 / (System.nanoTime() / 10e9 - currTime) + " color intensity " + colorIntensity + " size " + mRGB.size().toString());
-                        else if (started)
-                            Log.d("onImageAvailable - started streaming", 1.0 / (System.nanoTime() / 10e9 - currTime) + " color intensity " + colorIntensity + " size " + mRGB.size().toString());
-                    }
-                    currTime = System.nanoTime()/10e9;
+//                    if (testing || recalibrating || recalibratingPreamble || started) {
+////                    if (testing || started) {
+//                        if (testing)
+//                            Log.d("onImageAvailable - testing", 1.0 / (System.nanoTime() / 10e9 - currTime) + " color intensity " + colorIntensity + " size " + mRGB.size().toString());
+//                        else if (recalibrating)
+//                            Log.d("onImageAvailable - recalibrating", 1.0 / (System.nanoTime() / 10e9 - currTime) + " color intensity " + colorIntensity + " size " + mRGB.size().toString());
+//                        else if (recalibratingPreamble)
+//                            Log.d("onImageAvailable - recalibrating preamble", 1.0 / (System.nanoTime() / 10e9 - currTime) + " color intensity " + colorIntensity + " size " + mRGB.size().toString());
+//                        else if (started)
+//                            Log.d("onImageAvailable - started streaming", 1.0 / (System.nanoTime() / 10e9 - currTime) + " color intensity " + colorIntensity + " size " + mRGB.size().toString());
+//                    }
+//                    currTime = System.nanoTime()/10e9;
                 }
             } catch (Exception e) {
                 Log.w("Dying in onImageAvailable", e.getMessage());
@@ -359,24 +394,36 @@ public class MainActivity extends AppCompatActivity {
         };
     }
 
-    public void recalibrateButtonHandler(View view) {
-        calibration.clear();
+//    public void recalibrateButtonHandler(View view) {
+//        calibration.clear();
+//        TextView statusText = (TextView) findViewById(R.id.status);
+//        statusText.setText(R.string.recalibrating);
+//        Log.d("recalibrationHandler", "Starting to recalibrate");
+////        recalibrating = true;
+//    }
+
+    public void recalibratePreambleButtonHandler(View view) {
+        preamble.clear();
+        STOP_THRESHOLD = 0.0;
         TextView statusText = (TextView) findViewById(R.id.status);
-        statusText.setText(R.string.recalibrating);
-        Log.d("recalibrationHandler", "Starting to recalibrate");
-        recalibrating = true;
+        statusText.setText(R.string.recalibrate_preamble);
+        Log.d("recalibratePreambleButtonHandler", "Starting to recalibrate");
+        recalibratingPreamble = true;
     }
 
     public void restartButtonHandler(View view) {
         TextView statusText = (TextView) findViewById(R.id.status);
-        if (calibration.isEmpty()) {
-            Log.d("restartHandler", "Rejected because not calibrated");
-            statusText.setText(R.string.needs_recalibration);
-        } else {
+//        if (calibration.isEmpty()) {
+//            Log.d("restartHandler", "Rejected because not calibrated");
+//            statusText.setText(R.string.needs_recalibration);
+//        } else {
             if (started) {
                 started = false;
                 Log.d("restartHandler", "Canceling start");
                 statusText.setText(R.string.none);
+                if (!bitstream.isEmpty()) {
+                    analyzeStream();
+                }
             } else {
                 bitstream.clear();
                 statusText.setText(R.string.started);
@@ -384,7 +431,7 @@ public class MainActivity extends AppCompatActivity {
                 started = true;
                 witnessed = false;
             }
-        }
+//        }
     }
 
     private void analyzeStream() {
@@ -395,74 +442,121 @@ public class MainActivity extends AppCompatActivity {
         double total = 0.0;
         for (int i = filteredStream.size() - 1; i >= 0; i--) {
             if (filteredStream.get(i) < STOP_THRESHOLD) {
-                Log.d("analyzeStream", "Removing " + i);
+                Log.d("analyzeStream - end", "Removing " + i);
                 filteredStream.remove(i);
             } else {
+                Log.d("analyzeStream - end", "breaking " + filteredStream.get(i) + " vs. " + STOP_THRESHOLD);
                 break;
             }
         }
         for (int i = 0; i < filteredStream.size(); i++) {
             if (filteredStream.get(i) < STOP_THRESHOLD) {
-                Log.d("analyzeStream", "Removing " + i);
+                Log.d("analyzeStream - beginning", "Removing " + i);
                 filteredStream.remove(i);
                 i--;
             } else {
+                Log.d("analyzeStream - beginning", "breaking " + filteredStream.get(i) + " vs. " + STOP_THRESHOLD);
                 break;
             }
         }
 
-//        // Average of readings
-//        for (int i = 0; i < filteredStream.size(); i++) {
-//            total += filteredStream.get(i);
-//        }
-//
-//        double average = total / filteredStream.size();
+        // Average of readings
+        for (int i = 0; i < filteredStream.size(); i++) {
+            total += filteredStream.get(i);
+        }
+
+        double average2 = total / filteredStream.size();
 
         // Average of calibration
-        for (int i = 0; i < calibration.size(); i++) {
-            total += calibration.get(i);
-        }
-        double average = total / calibration.size();
+//        double minimum = Double.MAX_VALUE;
+//        for (int i = 0; i < calibration.size(); i++) {
+//            total += calibration.get(i);
+//            minimum = Math.min(minimum, calibration.get(i));
+//        }
+//        double average = total / calibration.size();
 
-        ArrayList<Integer> onOffMapping = new ArrayList<>();
+//        Log.d("analyzeStream - average", "Average " + average + ", minimum " + minimum);
+
+//        ArrayList<Integer> onOffMapping = new ArrayList<>();
+        ArrayList<Double> alteredMapping = new ArrayList<>();
 
         for (int i = 0; i < filteredStream.size(); i++) {
+//            if (filteredStream.get(i) < average * 0.9) {
+//            if (filteredStream.get(i) < minimum) {
+            alteredMapping.add(filteredStream.get(i) - average2);
 //            if (filteredStream.get(i) < average) {
-            if (filteredStream.get(i) < average * 0.8) {
-                onOffMapping.add(-1);
-            } else {
-                onOffMapping.add(1);
-            }
+//                onOffMapping.add(-1);
+//            } else {
+//                onOffMapping.add(1);
+//            }
         }
 
-        Log.d("analyzeStream", "mapping " + onOffMapping.toString());
+
+
+//        Log.d("analyzeStream", "mapping " + onOffMapping.toString());
 
         Log.d("analyzeStream", "Getting fft");
 
-        // Repeat the sequence of 12 so we have more buckets for ffts
+//        // Repeat the sequence of 12 so we have more buckets for ffts
         int numEntries = 32;
         FFT fft = new FFT(numEntries);
         int stepSize = 6;
         Complex[] x = new Complex[numEntries];
-        ArrayList<Integer> maxIndices = new ArrayList<>();
-        int totalInds = 0;
-        for (int i = 0; i < onOffMapping.size(); i += stepSize) {
-            if (i + stepSize <= onOffMapping.size()) {
+
+//        ArrayList<Integer> maxIndices = new ArrayList<>();
+//        int totalInds = 0;
+//        for (int i = 0; i < onOffMapping.size(); i += stepSize) {
+//            if (i + stepSize <= onOffMapping.size()) {
+//                for (int j = 0; j < numEntries; j++) {
+//                    x[j] = new Complex(onOffMapping.get(i + (j % stepSize)), 0.0);
+//                }
+//            } else {
+//                int remainder = onOffMapping.size() - i;
+//                if (remainder == 1) continue;
+//                for (int j = 0; j < numEntries; j++) {
+//                    x[j] = new Complex(onOffMapping.get(i + (j % remainder)), 0.0);
+//                }
+//            }
+//            Complex[] res = fft.fft(x);
+//            double[] ampl = new double[numEntries];
+//            int maxIndex = 1;
+//            double maxValue = 0.0;
+//            Log.d("analyzeStream - FFT", "x = " + Arrays.toString(x));
+//            Log.d("analyzeStream - FFT", "res = " + Arrays.toString(res));
+//            for (int j = 0; j < res.length; j++) {
+//                ampl[j] = res[j].abs();
+//                if (j != 0) {
+//                    if (ampl[j] > maxValue) {
+//                        maxValue = ampl[j];
+//                        maxIndex = j;
+//                    }
+//                }
+//            }
+//            maxIndices.add(maxIndex);
+//            totalInds += maxIndex;
+//        }
+
+
+        ArrayList<Integer> maxIndices2 = new ArrayList<>();
+        int totalInds2 = 0;
+        for (int i = 0; i < alteredMapping.size(); i += stepSize) {
+            if (i + stepSize <= alteredMapping.size()) {
                 for (int j = 0; j < numEntries; j++) {
-                    x[j] = new Complex(onOffMapping.get(i + (j % stepSize)), 0.0);
+                    x[j] = new Complex(alteredMapping.get(i + (j % stepSize)), 0.0);
                 }
             } else {
-                int remainder = onOffMapping.size() - i;
+                int remainder = alteredMapping.size() - i;
                 if (remainder == 1) continue;
                 for (int j = 0; j < numEntries; j++) {
-                    x[j] = new Complex(onOffMapping.get(i + (j % remainder)), 0.0);
+                    x[j] = new Complex(alteredMapping.get(i + (j % remainder)), 0.0);
                 }
             }
             Complex[] res = fft.fft(x);
             double[] ampl = new double[numEntries];
             int maxIndex = 1;
             double maxValue = 0.0;
-            Log.d("analyzeStream - FFT", Arrays.toString(res));
+            Log.d("analyzeStream - FFT2", "x = " + Arrays.toString(x));
+            Log.d("analyzeStream - FFT2", "res = " + Arrays.toString(res));
             for (int j = 0; j < res.length; j++) {
                 ampl[j] = res[j].abs();
                 if (j != 0) {
@@ -472,39 +566,64 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
             }
-            maxIndices.add(maxIndex);
-            totalInds += maxIndex;
+            maxIndices2.add(maxIndex);
+            totalInds2 += maxIndex;
         }
-        Log.d("analyzeStream", maxIndices.toString());
-        float averageInd = ((float) totalInds) / maxIndices.size();
-        Log.d("analyzeStream", "Average index " + averageInd);
-        final StringBuilder classifications = new StringBuilder(maxIndices.size());
-        for (int i = 0; i < maxIndices.size(); i++) {
-            if (maxIndices.get(i) > averageInd) {
-                classifications.append(1);
+
+
+//        Log.d("analyzeStream", maxIndices.toString());
+//        float averageInd = ((float) totalInds) / maxIndices.size();
+//        Log.d("analyzeStream", "Average index " + averageInd);
+//        final StringBuilder classifications = new StringBuilder(maxIndices.size());
+//        for (int i = 0; i < maxIndices.size(); i++) {
+//            if (maxIndices.get(i) > averageInd) {
+//                classifications.append(1);
+//            } else {
+//                classifications.append(0);
+//            }
+//        }
+
+        Log.d("analyzeStream2", maxIndices2.toString());
+        float averageInd2 = ((float) totalInds2) / maxIndices2.size();
+        Log.d("analyzeStream2", "Average index " + averageInd2);
+        final StringBuilder classifications2 = new StringBuilder(maxIndices2.size());
+        for (int i = 0; i < maxIndices2.size(); i++) {
+            if (maxIndices2.get(i) > averageInd2) {
+                classifications2.append(1);
             } else {
-                classifications.append(0);
+                classifications2.append(0);
             }
         }
-        final String s = classifications.toString();
-        Log.d("analyzeStream", "Final result " + s);
 
 
-        final StringBuilder result = new StringBuilder();
-        for (int i = 0; i + 8 <= s.length(); i += 8) {
-            int charCode = Integer.parseInt(s.substring(i, i + 8), 2);
-            result.append(Character.valueOf((char)charCode));
+//        final String s = classifications.toString();
+//        Log.d("analyzeStream", "Final result " + s);
+        final String s2 = classifications2.toString();
+        Log.d("analyzeStream2", "Final result " + s2);
+
+//        final StringBuilder result = new StringBuilder();
+//        for (int i = 0; i + 8 <= s.length(); i += 8) {
+//            int charCode = Integer.parseInt(s.substring(i, i + 8), 2);
+//            result.append(Character.valueOf((char)charCode));
+//        }
+
+        final StringBuilder result2 = new StringBuilder();
+        for (int i = 0; i + 8 <= s2.length(); i += 8) {
+            int charCode = Integer.parseInt(s2.substring(i, i + 8), 2);
+            result2.append(Character.valueOf((char)charCode));
         }
 
 
-        Log.d("analyzeStream", "Decoded string " + result.toString());
+//        Log.d("analyzeStream", "Decoded string " + result.toString());
+        Log.d("analyzeStream", "Decoded string " + result2.toString());
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 TextView bitsText = (TextView) findViewById(R.id.received_bits);
-                bitsText.setText(s);
+                bitsText.setText(s2);
+//                bitsText.setText(s + "\n" + sMajority);
                 TextView decodeText = (TextView) findViewById(R.id.decoded_message);
-                decodeText.setText(result.toString());
+                decodeText.setText(result2.toString());
             }
         });
 
@@ -610,7 +729,8 @@ public class MainActivity extends AppCompatActivity {
             surfaceTexture.setDefaultBufferSize(previewSize.getWidth(), previewSize.getHeight());
 //            surfaceTexture.setDefaultBufferSize(previewSize.getWidth() / 16, previewSize.getHeight() / 16);
             Surface previewSurface = new Surface(surfaceTexture);
-            mImageReader = ImageReader.newInstance(previewSize.getWidth() / 16, previewSize.getHeight() / 16, ImageFormat.YUV_420_888, 2);
+//            mImageReader = ImageReader.newInstance(previewSize.getWidth(), previewSize.getHeight(), ImageFormat.YUV_420_888, 2);
+            mImageReader = ImageReader.newInstance(previewSize.getWidth() / 4, previewSize.getHeight() / 4, ImageFormat.YUV_420_888, 2);
 //            mImageReader = ImageReader.newInstance(1, 1, ImageFormat.YUV_420_888, 2);
             mImageReader.setOnImageAvailableListener(mOnImageAvailableListener, mBackgroundHandler);
 
@@ -619,7 +739,7 @@ public class MainActivity extends AppCompatActivity {
             captureRequestBuilder.addTarget(mImageReader.getSurface());
             captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
             Range<Integer>[] fps = new Range[1];
-            fps[0] = Range.create(30, 31);
+            fps[0] = Range.create(30, 30);
             captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fps[0]);
 
 //            cameraDevice.createCaptureSession(Collections.singletonList(previewSurface),
